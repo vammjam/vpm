@@ -1,8 +1,7 @@
 import { builtinModules } from 'node:module'
 import path from 'node:path'
-
 import { UserConfig } from 'vite'
-
+import tsconfigPaths from 'vite-tsconfig-paths'
 import pkg from '../../package.json'
 
 const root = (...args: string[]) => path.join(__dirname, ...args)
@@ -14,6 +13,11 @@ const config: UserConfig = {
   root: root('src'),
   // envDir: '../',
   // envPrefix: 'PUBLIC',
+  plugins: [
+    tsconfigPaths({
+      root: '../',
+    }),
+  ],
   build: {
     outDir: '../../../dist',
     minify: process.env.NODE_ENV === 'production',
@@ -22,6 +26,7 @@ const config: UserConfig = {
       external: [
         ...nodePrefixedModules,
         ...builtinModules,
+        ...Object.keys(pkg.devDependencies || {}),
         ...Object.keys(pkg.dependencies || {}),
       ],
     },
@@ -29,11 +34,6 @@ const config: UserConfig = {
       entry: 'index.ts',
       formats: ['cjs'],
       fileName: () => 'main.cjs',
-    },
-  },
-  resolve: {
-    alias: {
-      '~/*': root('src'),
     },
   },
 }

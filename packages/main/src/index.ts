@@ -1,7 +1,9 @@
 import path from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { BrowserWindow, app } from 'electron'
-import { read } from './VarFileService'
+import { Config } from '@shared/types'
+import * as ConfigService from './ConfigService'
+import * as VarPackageService from './VarPackageService'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
@@ -32,10 +34,20 @@ const init = () => {
     return canceled ? undefined : filePaths[0]
   })
 
-  ipcMain.handle('getVarFiles', async (event, dir: string) => {
-    const files = await read(dir)
+  ipcMain.handle('getConfig', async () => {
+    return ConfigService.getConfig()
+  })
 
-    return files
+  ipcMain.handle('saveConfig', async (_, config: Partial<Config>) => {
+    return ConfigService.saveConfig(config)
+  })
+
+  ipcMain.handle('scan', async () => {
+    const { vamInstallPath: vamRootPath } = await ConfigService.getConfig()
+
+    if (vamRootPath) {
+      await VarPackageService.scan(vamRootPath)
+    }
   })
 }
 

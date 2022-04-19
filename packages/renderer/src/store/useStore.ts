@@ -1,38 +1,49 @@
-import create, { GetState, SetState } from 'zustand'
-import VarFile from '@shared/types/VarFile'
+import create, { SetState } from 'zustand'
+import { Config, VarPackage } from '@shared/types'
 
 export type Packages = {
-  [packageId: string]: VarFile
+  [packageId: string]: VarPackage
 }
 
 export type State = {
-  packagesDir?: string
+  config?: Config
   packages?: Packages
 
   // Actions
-  setPackagesDir: (dir: string) => void
-  setPackages: (packages: VarFile[]) => void
+  getConfig: () => Promise<void>
+  saveConfig: (config: Partial<Config>) => Promise<void>
+  scan: () => Promise<void>
 }
 
-const useStore = create<State>(
-  (set: SetState<State>, get: GetState<State>) => ({
-    setPackagesDir: (dir: string) => {
-      set({
-        packagesDir: dir,
-      })
-    },
-    setPackages: (packages: VarFile[]) => {
-      const updatedPackages = get().packages || {}
+const useStore = create<State>((set: SetState<State>) => ({
+  getConfig: async () => {
+    const config = await window.api.getConfig()
 
-      for (const pkg of packages) {
-        updatedPackages[pkg.id] = pkg
-      }
+    set({ config })
+  },
+  saveConfig: async (data: Partial<Config>) => {
+    const config = await window.api.saveConfig(data)
 
-      set({
-        packages: updatedPackages,
-      })
-    },
-  })
-)
+    set({ config })
+  },
+  scan: async () => {
+    const packages = await window.api.scan()
+
+    if (packages != null) {
+      const scanned = packages.reduce((acc, curr) => {
+        acc[curr.id] = curr
+
+        return acc
+      }, {} as Packages)
+
+      set((prev) => ({
+        packages: {
+          ...prev.packages,
+          ...scanned,
+        },
+      }))
+    }
+  },
+}))
 
 export default useStore

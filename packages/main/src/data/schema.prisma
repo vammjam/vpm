@@ -8,30 +8,35 @@ generator client {
 }
 
 model VarPackage {
-  id          String   @id
-  name        String   @unique
-  createdAt   DateTime
-  updatedAt   DateTime
-  images      Image[]  @relation(name: "VarPackageImages")
-  mainImage   Image    @relation(name: "VarPackageMainImage", fields: [mainImageId], references: [id])
-  mainImageId String   @unique
-  description String
-  creator     Creator  @relation(fields: [creatorId], references: [id])
-  creatorId   String
-  Image       Image[]
+  id           String        @id
+  createdAt    DateTime
+  name         String
+  version      Int
+  creator      Creator       @relation(fields: [creatorId], references: [id])
+  creatorId    String
+  path         String
+  images       Image[]
+  description  String?
+  contentTypes ContentType[]
+}
+
+model ContentType {
+  id            Int        @id @default(autoincrement())
+  varPackage    VarPackage @relation(fields: [varPackageId], references: [id])
+  varPackageId  String
+  contentTypeId Int
 }
 
 model Image {
-  id           String       @id
-  path         String
-  VarPackage   VarPackage?  @relation(fields: [varPackageId], references: [id])
-  varPackageId String?
-  VarPackage   VarPackage?  @relation(fields: [varPackageId], references: [id])
-  VarPackage   VarPackage[]
+  id           String     @id
+  path         String     @unique
+  sort         Int        @default(0)
+  varPackage   VarPackage @relation(fields: [varPackageId], references: [id])
+  varPackageId String
 }
 
 model Creator {
   id         String       @id
-  name       String
-  VarPackage VarPackage[]
+  name       String       @unique
+  varPackage VarPackage[]
 }
