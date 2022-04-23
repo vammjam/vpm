@@ -1,18 +1,13 @@
 import { StrictMode } from 'react'
 import { render } from 'react-dom'
-// import { createRoot } from 'react-dom/client'
 import App from '~/app/App'
 import StyleProvider from '~/style/StyleProvider'
 
-// const root = createRoot(document.getElementById('root') as HTMLElement)
-
-// root.render(
-//   <StrictMode>
-//     <StyleProvider>
-//       <App />
-//     </StyleProvider>
-//   </StrictMode>
-// )
+/**
+ * React 18's render mode breaks x-term, so for now, we have
+ * to use the old render, which throws a nice error in the
+ * console that we can safely ignore.
+ */
 const root = document.getElementById('root')
 
 render(

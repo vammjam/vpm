@@ -7,9 +7,10 @@
   "scripts": {
     "dx": "yarn clean && node --loader ts-node/esm scripts/watch.ts",
     "build": "yarn clean && node --loader ts-node/esm scripts/build.ts",
-    "clean": "rimraf dist",
-    "data:recycle": "rimraf ./packages/main/src/data/vpm.db && yarn prisma db push --schema=./packages/main/src/data/schema.prisma",
-    "postinstall": "npm rebuild jpegtran-bin"
+    "clean": "rimraf dist images*/",
+    "data:init": "yarn prisma generate --schema=./packages/main/src/data/schema.prisma && yarn prisma db push --schema=./packages/main/src/data/schema.prisma",
+    "data:clean": "rimraf ./packages/main/src/data/vpm.db && yarn data:init",
+    "postinstall": "npm rebuild jpegtran-bin && yarn data:init"
   },
   "dependencies": {
     "@prisma/client": "^3.12.0",

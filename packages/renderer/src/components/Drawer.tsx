@@ -41,16 +41,6 @@ export default function Drawer({
   children,
   ...props
 }: DrawerProps): JSX.Element {
-  // const position: [number | string, number | string] = [0, 0]
-
-  // if (props.anchor === 'bottom') {
-  //   if (props.open) {
-  //     position[1] = `calc(100vh - ${props.height})`
-  //   } else {
-  //     position[1] = '100vh'
-  //   }
-  // }
-
   const handleClose = () => {
     if (props.onClose) {
       props.onClose()
@@ -58,14 +48,7 @@ export default function Drawer({
   }
 
   return (
-    <Container
-      {...props}
-      style={
-        {
-          // transform: `translate(${position[0]}, ${position[1]})`,
-        }
-      }
-    >
+    <Container {...props}>
       {/* <CloseButton onClick={handleClose}>x</CloseButton> */}
       {children}
     </Container>

@@ -4,8 +4,6 @@ import styled from 'styled-components'
 
 const View = styled.div`
   display: flex;
-  /* max-height: 100vh;
-  max-width: 100vw; */
   overflow: hidden;
 `
 

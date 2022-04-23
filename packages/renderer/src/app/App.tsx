@@ -5,13 +5,6 @@ import Package from '~/app/Package'
 import { Drawer, ScrollView, StackedView, View } from '~/components'
 import useStore from '~/store/useStore'
 
-// const View = styled.div`
-//   display: flex;
-//   max-height: 100vh;
-//   overflow-y: auto;
-//   overflow-x: hidden;
-// `
-
 const Packages = styled.div`
   display: flex;
   flex-wrap: wrap;
@@ -21,24 +14,6 @@ const Packages = styled.div`
     flex: 1;
   }
 `
-
-// const LeftPane = styled(Panel)`
-//   flex: 1;
-// `
-
-// const RightPane = styled(Panel)`
-//   flex: 2;
-//   flex-direction: column;
-// `
-
-// const Loader = styled.div`
-//   position: fixed;
-//   inset: 0;
-//   /* width: 100%;
-//   height: 100vh;
-//   background-color: rgba(0, 0, 0, 0.5);
-//   backdrop-filter: blur(10px); */
-// `
 
 export default function App(): JSX.Element {
   const {

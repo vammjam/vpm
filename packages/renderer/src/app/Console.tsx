@@ -28,8 +28,6 @@ const termOptions: ITerminalOptions = {
   cursorBlink: false,
   customGlyphs: true,
   rendererType: 'dom',
-  // cols: Math.round(window.innerWidth / 8),
-  // rows: Math.round(window.innerHeight / 3.3 - 50),
   theme: {
     background: termStyle.background,
   },
