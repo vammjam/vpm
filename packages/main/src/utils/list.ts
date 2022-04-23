@@ -1,4 +1,5 @@
 import { Stats } from 'node:fs'
+import path from 'node:path'
 import { totalist } from 'totalist'
 
 export type ListedFile = {
@@ -13,7 +14,7 @@ export default async function list(dir: string, ext: string) {
   await totalist(dir, (name, abs, stats) => {
     if (name.endsWith(ext)) {
       const file: ListedFile = {
-        name,
+        name: path.basename(name),
         path: abs,
         stats,
       }

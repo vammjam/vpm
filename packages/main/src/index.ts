@@ -1,16 +1,18 @@
 import path from 'node:path'
+import process from 'node:process'
 import { dialog, ipcMain } from 'electron'
 import { BrowserWindow, app } from 'electron'
-import { Config } from '@shared/types'
+import { ApiEvent, Config } from '@shared/types'
 import * as ConfigService from './ConfigService'
-import * as VarPackageService from './VarPackageService'
+import VarPackageService from './VarPackageService'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
 const init = () => {
+  const packageService = new VarPackageService()
   const mainWindow = new BrowserWindow({
-    height: 600,
-    width: 600,
+    height: 800,
+    width: 1200,
     webPreferences: {
       nodeIntegration: false, // default in Electron >= 5
       contextIsolation: true, // default in Electron >= 12
@@ -25,6 +27,29 @@ const init = () => {
     // mainWindow.loadFile('index.html')
     mainWindow.loadFile(path.join(__dirname, 'index.html'))
   }
+
+  const logCallback =
+    (channel: ApiEvent) =>
+    (message?: unknown, ...optionalParams: unknown[]) => {
+      mainWindow.webContents.send(channel, message, ...optionalParams)
+    }
+
+  const attachHandler = (event: ApiEvent) => {
+    packageService.on(event, (...args: unknown[]) => {
+      mainWindow.webContents.send(event, ...args)
+    })
+  }
+
+  attachHandler('scan:start')
+  attachHandler('scan:stop')
+  attachHandler('scan:progress')
+  attachHandler('scan:error')
+
+  mainWindow.webContents.once('dom-ready', () => {
+    console.log = logCallback('log')
+    console.warn = logCallback('log:warn')
+    console.error = logCallback('log:err')
+  })
 
   ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
@@ -43,11 +68,19 @@ const init = () => {
   })
 
   ipcMain.handle('scan', async () => {
-    const { vamInstallPath: vamRootPath } = await ConfigService.getConfig()
+    const { vamInstallPath } = await ConfigService.getConfig()
 
-    if (vamRootPath) {
-      await VarPackageService.scan(vamRootPath)
+    if (vamInstallPath) {
+      packageService.scan(vamInstallPath)
     }
+  })
+
+  ipcMain.handle('cancelScan', async () => {
+    return packageService.cancelScan()
+  })
+
+  ipcMain.handle('getPackages', async () => {
+    return packageService.getPackages()
   })
 }
 

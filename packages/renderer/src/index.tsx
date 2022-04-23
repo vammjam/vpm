@@ -1,13 +1,25 @@
 import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
+import { render } from 'react-dom'
+// import { createRoot } from 'react-dom/client'
+import App from '~/app/App'
+import StyleProvider from '~/style/StyleProvider'
 
-// import App from '~/components/App'
-import App from './components/App'
+// const root = createRoot(document.getElementById('root') as HTMLElement)
 
-const root = createRoot(document.getElementById('root') as HTMLElement)
+// root.render(
+//   <StrictMode>
+//     <StyleProvider>
+//       <App />
+//     </StyleProvider>
+//   </StrictMode>
+// )
+const root = document.getElementById('root')
 
-root.render(
+render(
   <StrictMode>
-    <App />
-  </StrictMode>
+    <StyleProvider>
+      <App />
+    </StyleProvider>
+  </StrictMode>,
+  root
 )

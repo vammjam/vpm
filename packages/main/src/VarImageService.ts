@@ -1,10 +1,13 @@
+import fsp from 'node:fs/promises'
 import path, { ParsedPath } from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import Zip from 'adm-zip'
 import fs from 'fs-extra'
+import imagemin from 'imagemin'
 import imageminJpegtran from 'imagemin-jpegtran'
 import imageminPngquant from 'imagemin-pngquant'
 import { nanoid } from 'nanoid'
+import stringSimilarity from 'string-similarity'
 import { Image, varPackageExtensions } from '@shared/types'
 
 type ImageData = {
@@ -16,28 +19,24 @@ const client = new PrismaClient()
 const imageFileExtensions = ['.jpg', '.png']
 
 /**
- * Find all possible image paths in this package by
- * looking in two places:
- * 1. The "contentList" array of manifest.json
- * 2. Looking into the folders
- *
- * Images should be referenced in meta.json, but
- * many won't be, so we look through each file included in
- * the package.
+ * Find all possible images in this package by comparing
+ * file names of the images to file names of other listed
+ * (non-image) content. Typically, the images we will want
+ * to save are named exactly, or very similarly, to other
+ * content found within the zip.
  */
-export const getImagesFromZip = (zip: Zip): string[] => {
-  // const contentList =
-  //   manifest?.contentList?.map(path.parse).filter(isImage) ?? []
+export const getImagesFromZip = (zip: Zip, fileName: string): string[] => {
   const entries = zip.getEntries().map((entry) => path.parse(entry.entryName))
-
   const imagePaths = entries.filter(isImage)
-  const content = entries.filter(isContent)
 
-  const contentImages = content.filter((parsedPath) => {
-    return imagePaths.some((imagePath) => imagePath.name === parsedPath.name)
+  const content = [fileName, ...entries.filter(isContent).map((p) => p.name)]
+  const contentImages = imagePaths.filter((ip) => {
+    return content.some(
+      (c) => stringSimilarity.compareTwoStrings(c, ip.name) > 0.7
+    )
   })
 
-  return contentImages.map(path.format)
+  return contentImages.map((p) => `${p.dir}/${p.base}`)
 }
 
 const isImage = (parsedPath: ParsedPath) => {
@@ -72,9 +71,16 @@ const getImageData = async (
   })
 }
 
-const optimizeImages = async (src: string, dest: string): Promise<string[]> => {
-  const imagemin = await import('imagemin')
-  const files = await imagemin.default([`${src}/**/*.{jpg,png}`], {
+const optimizeImages = async (
+  images: string[],
+  dest: string
+): Promise<string[]> => {
+  // imagemin expects Unix-style paths...
+  const unixStylePaths = images.map((imagePath) =>
+    imagePath.replaceAll(/\\/g, '/')
+  )
+
+  const files = await imagemin(unixStylePaths, {
     destination: dest,
     plugins: [
       imageminJpegtran(),
@@ -88,6 +94,8 @@ const optimizeImages = async (src: string, dest: string): Promise<string[]> => {
 }
 
 const saveVarImages = async (images: ImageData[], dir: string) => {
+  const savePaths = []
+
   for await (const image of images) {
     /**
      * To save images with the same exact path used in the
@@ -99,17 +107,17 @@ const saveVarImages = async (images: ImageData[], dir: string) => {
     //   imageData.path.base
     // )
     const imageSavePath = path.resolve(dir, image.path.base)
-
+    const imageTmpSavePath = path.join(dir, 'tmp', image.path.base)
     const doesImageExistOnDisk = await fs.pathExists(imageSavePath)
 
-    if (!doesImageExistOnDisk) {
-      console.log(
-        `Saving image "${path.format(image.path)} to "${imageSavePath}"`
-      )
+    if (!doesImageExistOnDisk && image.data != null) {
+      await fsp.writeFile(imageTmpSavePath, image.data)
 
-      await fs.outputFile(imageSavePath, image.data)
+      savePaths.push(imageTmpSavePath)
     }
   }
+
+  return savePaths
 }
 
 /**
@@ -124,43 +132,29 @@ const saveVarImages = async (images: ImageData[], dir: string) => {
  */
 export const saveImages = async (
   images: string[],
-  varPackageId: string,
   zip: Zip,
   dir: string
-): Promise<Image[]> => {
+): Promise<Omit<Image, 'varPackageId'>[]> => {
   const tmp = path.join(dir, 'tmp')
+  await fs.ensureDir(tmp)
+
   const data = await Promise.all(
     images.map((image) => getImageData(image, zip))
   )
 
-  await saveVarImages(data, tmp)
+  const imagePaths = await saveVarImages(data, dir)
 
   console.log('Optimizing images...')
-  const files = await optimizeImages(tmp, dir)
+  const files = await optimizeImages(imagePaths, dir)
   await fs.remove(tmp)
 
-  const saved = files.map(async (file) => {
-    const exists = await findImageInDatabase(file)
-
-    if (exists && exists.varPackageId !== varPackageId) {
-      console.warn(
-        `Image "${file}" exists in database, but has an incorrect varPackageId: saved "${exists}" vs "${varPackageId}"`
-      )
+  return files.map((file) => {
+    return {
+      id: nanoid(),
+      path: file,
+      sort: 0,
     }
-
-    return (
-      exists ??
-      (await client.image.create({
-        data: {
-          id: nanoid(),
-          path: file,
-          varPackageId,
-        },
-      }))
-    )
   })
-
-  return Promise.all(saved)
 }
 
 export const findImageInDatabase = async (imagePath: string) => {

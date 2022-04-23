@@ -6,6 +6,7 @@ enum VarPackageType {
   Preset,
   Favorite,
   Script,
+  Manifest,
 }
 
 export default VarPackageType
@@ -22,6 +23,7 @@ export const varPackageExtensionMap: Record<string, VarPackageType> = {
   ['.vap']: VarPackageType.Preset,
   ['.fav']: VarPackageType.Favorite,
   ['.cs']: VarPackageType.Script,
+  ['.json']: VarPackageType.Manifest,
 }
 
 export const varPackageExtensions = Object.keys(varPackageExtensionMap)

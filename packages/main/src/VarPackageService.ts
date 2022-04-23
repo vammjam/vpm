@@ -1,17 +1,213 @@
+import EventEmitter from 'node:events'
 import path from 'node:path'
 import { ContentType, PrismaClient } from '@prisma/client'
 import Zip from 'adm-zip'
 import { nanoid } from 'nanoid'
+import prettyMs from 'pretty-ms'
 import {
   VarManifest,
   VarPackage,
   varPackageExtensionMap,
   varPackageExtensions,
 } from '@shared/types'
-import list from '~/utils/list'
+import { VarPackageScanError } from '@shared/types'
+import list, { ListedFile } from '~/utils/list'
 import { getImagesFromZip, saveImages } from './VarImageService'
 
-const client = new PrismaClient()
+const wait = (seconds: number) =>
+  new Promise((resolve) => setTimeout(resolve, seconds * 1000))
+
+export default class VarPackageService extends EventEmitter {
+  client = new PrismaClient()
+  isCancelled = false
+  scanStart: Date | null = null
+  scanStop: Date | null = null
+
+  async getPackages() {
+    return this.client.varPackage.findMany({
+      include: {
+        creator: true,
+        contentTypes: true,
+        images: true,
+      },
+    })
+  }
+
+  async savePackage(
+    fileName: string,
+    filePath: string
+  ): Promise<Omit<VarPackage, 'images'> | void> {
+    const { creatorName, id, name, version } = parseFileName(fileName)
+
+    const zip = new Zip(filePath)
+    const manifest = await getManifest(zip)
+
+    if (manifest == null) {
+      return console.error(`Invalid package (no manifest found) for "${id}"`)
+    }
+
+    const creator = await this.#parseCreator(creatorName)
+    const images = getImagesFromZip(zip, name)
+    const imageText = images.length >= 2 ? 'images' : 'image'
+
+    console.log(`Found ${images.length} ${imageText} for package "${id}"`)
+
+    const savedImages = await saveImages(
+      images,
+      zip,
+      path.join(process.cwd(), 'images', creator.name)
+    )
+
+    console.log('Saved images')
+
+    const varPackage = await this.client.varPackage.create({
+      include: {
+        contentTypes: true,
+        images: true,
+        creator: true,
+      },
+      data: {
+        id,
+        name,
+        path: filePath,
+        version,
+        createdAt: new Date(),
+        description: manifest.description ?? null,
+        creator: {
+          connectOrCreate: {
+            create: {
+              ...creator,
+            },
+            where: {
+              name: creator.name,
+            },
+          },
+        },
+        contentTypes: {
+          create: getPackageContentTypes(zip),
+        },
+        images: {
+          create: savedImages,
+        },
+      },
+    })
+
+    return varPackage
+  }
+
+  async cancelScan() {
+    this.isCancelled = true
+  }
+
+  async scan(dir: string) {
+    this.isCancelled = false
+    this.emit('scan:start')
+    this.scanStart = new Date()
+
+    console.log('Scan started')
+
+    const files = await list(dir, '.var')
+
+    if (files.length > 0) {
+      console.log(`Found ${files.length} packages.`)
+
+      const currentPackages = await this.client.varPackage.findMany({
+        select: {
+          path: true,
+        },
+      })
+
+      const unscannedPackages = files.filter(({ path }) => {
+        return !currentPackages.find((p) => p.path === path)
+      })
+
+      console.log(`${unscannedPackages.length} of which are new.`)
+
+      await wait(2)
+
+      const groupedByCreator = groupPackagesByCreator(unscannedPackages)
+
+      const vars = []
+      const errors: VarPackageScanError[] = []
+      let i = 0
+      let lastPercent = 0
+      const len = unscannedPackages.length
+      const packages = Object.entries(groupedByCreator)
+
+      for await (const [creatorName, packageFiles] of packages) {
+        if (this.isCancelled) {
+          break
+        }
+
+        const pkgText = packageFiles.length >= 2 ? 'packages' : 'package'
+
+        console.log(
+          `Scanning ${packageFiles.length} ${pkgText} from "${creatorName}"`
+        )
+
+        for await (const file of packageFiles) {
+          i += 1
+          const pct = Math.round((100 * i) / len)
+          try {
+            const pkg = await this.savePackage(file.name, file.path)
+
+            vars.push(pkg)
+          } catch (err) {
+            console.error((err as Error)?.message)
+
+            errors.push({
+              file: file.name,
+              path: file.path,
+              error: err,
+            })
+          }
+
+          if (lastPercent !== pct) {
+            this.emit('scan:progress', pct)
+
+            lastPercent = pct
+          }
+        }
+
+        console.log(`Done\n`)
+
+        await wait(0.5)
+      }
+
+      await this.client.$disconnect()
+
+      this.scanStop = new Date()
+      const duration = this.scanStop.getTime() - this.scanStart.getTime()
+
+      const filtered = vars.filter((file) => file != null) as VarPackage[]
+      const completePrefix = `Scan ${
+        this.isCancelled ? 'cancelled' : 'complete'
+      }`
+      console[this.isCancelled ? 'warn' : 'log'](
+        `${completePrefix}: Saved ${filtered.length} new packages in ${prettyMs(
+          duration
+        )}.`
+      )
+
+      this.emit('scan:stop')
+    }
+  }
+
+  async #parseCreator(creatorName: string) {
+    const creator = await this.client.creator.findFirst({
+      where: { name: creatorName },
+    })
+
+    return creator == null
+      ? this.client.creator.create({
+          data: {
+            id: nanoid(),
+            name: creatorName,
+          },
+        })
+      : creator
+  }
+}
 
 const getManifest = async (zip: Zip): Promise<VarManifest | undefined> => {
   return new Promise((resolve, reject) => {
@@ -26,24 +222,15 @@ const getManifest = async (zip: Zip): Promise<VarManifest | undefined> => {
         return reject('meta.json not found')
       }
 
-      resolve(JSON.parse(manifest) as VarManifest)
+      try {
+        const parsed = JSON.parse(manifest) as VarManifest
+
+        resolve(parsed)
+      } catch (err) {
+        reject(err)
+      }
     })
   })
-}
-
-const parseCreator = async (creatorName: string) => {
-  const creator = await client.creator.findFirst({
-    where: { name: creatorName },
-  })
-
-  return creator == null
-    ? client.creator.create({
-        data: {
-          id: nanoid(),
-          name: creatorName,
-        },
-      })
-    : creator
 }
 
 const isValidString = (str?: string) => {
@@ -87,7 +274,7 @@ const getPackageContentTypes = (
   const exts = [...new Set(allExts)]
 
   return exts
-    .filter(varPackageExtensions.includes)
+    .filter((ext) => varPackageExtensions.includes(ext))
     .map((ext) => varPackageExtensionMap[ext] ?? null)
     .filter((type) => type != null)
     .map((type) => ({
@@ -95,101 +282,16 @@ const getPackageContentTypes = (
     }))
 }
 
-const savePackage = async (
-  fileName: string,
-  filePath: string
-): Promise<VarPackage | void> => {
-  try {
-    const { creatorName, id, name, version } = parseFileName(fileName)
+const groupPackagesByCreator = (packages: ListedFile[]) => {
+  return packages.reduce((acc, curr) => {
+    const { creatorName } = parseFileName(curr.name)
 
-    console.log(`\nReading package "${id}"`)
-
-    const zip = new Zip(filePath)
-    const manifest = await getManifest(zip)
-
-    if (manifest == null) {
-      return console.error(`\nInvalid package (no manifest found) for "${id}"`)
+    if (!acc[creatorName]) {
+      acc[creatorName] = []
     }
 
-    const exists = await client.varPackage.findFirst({
-      include: {
-        contentTypes: true,
-        images: true,
-        creator: true,
-      },
-      where: {
-        id,
-      },
-    })
+    acc[creatorName].push(curr)
 
-    if (exists != null) {
-      console.log(`Package "${id}" already exists in database.`)
-    }
-
-    const creator = await parseCreator(creatorName)
-    const images = getImagesFromZip(zip)
-
-    console.log(`Found ${images.length} images for package "${id}"`)
-
-    const savedImages = await saveImages(
-      images,
-      id,
-      zip,
-      path.join(process.cwd(), 'images', creator.name)
-    )
-
-    const varPackage =
-      exists ??
-      (await client.varPackage.create({
-        include: {
-          contentTypes: true,
-          images: true,
-          creator: true,
-        },
-        data: {
-          id,
-          name,
-          path: filePath,
-          version,
-          createdAt: new Date(),
-          description: manifest.description ?? null,
-          creator: {
-            connectOrCreate: {
-              create: {
-                ...creator,
-              },
-              where: {
-                name: creator.name,
-              },
-            },
-          },
-          contentTypes: {
-            create: getPackageContentTypes(zip),
-          },
-          images: {
-            create: savedImages,
-          },
-        },
-      }))
-
-    return varPackage
-  } catch (err) {
-    console.error((err as Error)?.message)
-  }
-}
-
-export const scan = async (dir: string): Promise<VarPackage[] | undefined> => {
-  const files = await list(dir, '.var')
-
-  if (files.length > 0) {
-    console.log(`Found ${files.length} packages.`)
-
-    const vars = await Promise.all(
-      files.map((file) => savePackage(file.name, file.path))
-    )
-
-    return vars.filter((file) => file != null) as VarPackage[]
-  }
-
-  console.warn(`No var packages found in ${dir}!`)
+    return acc
+  }, {} as Record<string, ListedFile[]>)
 }
