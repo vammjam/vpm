@@ -1,0 +1,70 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./vpm.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Group {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  children Package[]
+}
+
+model Package {
+  id           Int            @id @default(autoincrement())
+  createdAt    DateTime
+  name         String
+  birthtime    DateTime?
+  size         Int?
+  path         String
+  scene        Scene[]
+  addonPackage AddonPackage[]
+  group        Group?         @relation(fields: [groupId], references: [id])
+  groupId      Int?
+}
+
+model AddonPackage {
+  id            String  @id
+  package       Package @relation(fields: [packageId], references: [id])
+  packageId     Int
+  packageTypeId Int?
+
+  version            Int
+  description        String?
+  instructions       String?
+  credits            String?
+  licenseType        String?
+  hasReferenceIssues Boolean?
+
+  creator   Creator @relation(fields: [creatorId], references: [id])
+  creatorId String
+
+  images Image[]
+}
+
+model Scene {
+  id        String  @id
+  package   Package @relation(fields: [packageId], references: [id])
+  packageId Int
+
+  image   Image?  @relation(fields: [imageId], references: [id])
+  imageId String?
+}
+
+model Image {
+  id             String       @id
+  path           String
+  sort           Int          @default(0)
+  addonPackage   AddonPackage @relation(fields: [addonPackageId], references: [id])
+  addonPackageId String       @map("addonPackageId")
+  scene          Scene[]
+}
+
+model Creator {
+  id           String         @id
+  name         String         @unique
+  AddonPackage AddonPackage[]
+}
