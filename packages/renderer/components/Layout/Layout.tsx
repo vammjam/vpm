@@ -1,9 +1,9 @@
 import { createContext, useCallback, useMemo, useRef, useState } from 'react'
 import { AddonPackage } from '@shared/types'
-import Console from '~/app/views/Console'
-import Menu from '~/app/views/Menu'
-import Packages from '~/app/views/PackagesContainer'
 import { PanelConfig, PanelGroup } from '~/components/Panel'
+import Console from '~/features/Console/Console'
+import Menu from '~/features/Menu'
+import Packages from '~/features/Package/PackagesContainer'
 import useLocalStorage from '~/hooks/useLocalStorage'
 import useWindowSize from '~/hooks/useWindowSize'
 

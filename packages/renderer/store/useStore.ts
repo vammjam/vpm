@@ -13,7 +13,6 @@ export type State = Required<Config> & {
   packages: Packages
   isScanning: boolean
   scanProgress?: number
-  layout: Layout
 
   // Actions
   scan: () => void
@@ -26,7 +25,7 @@ export type State = Required<Config> & {
   setLayout: (layout: Layout) => void
 }
 
-const config = (await window.api?.getConfig()) ?? {}
+const config = (await window.api?.getConfig()) ?? ({} as Config)
 const theme = config?.theme ?? getSystemTheme()
 
 const toMap = (packages: AddonPackage[]): Packages => {
@@ -95,6 +94,7 @@ const useStore = create<State>((set: SetState<State>, get: GetState<State>) => {
     layout: config.layout ?? 'grid',
     vamInstallPaths: config.vamInstallPaths ?? [],
     theme,
+    imageSaveQuality: config.imageSaveQuality,
     setLayout: async (layout: Layout) => {
       const newConfig = await window.api?.setConfig({
         layout,

@@ -27,9 +27,11 @@ model Package {
 }
 
 model AddonPackage {
-  id            String  @id
-  package       Package @relation(fields: [packageId], references: [id])
+  id            String     @id
+  package       Package    @relation(fields: [packageId], references: [id])
   packageId     Int
+  hubPackage    HubPackage @relation(fields: [hubPackageId], references: [id])
+  hubPackageId  Int
   packageTypeId Int?
 
   version            Int
@@ -43,6 +45,38 @@ model AddonPackage {
   creatorId String
 
   images Image[]
+}
+
+model HubPackage {
+  id            Int            @id @default(autoincrement())
+  releasedAt    DateTime
+  lastUpdatedAt DateTime
+  addonPackage  AddonPackage[]
+
+  packageId          Int
+  resourceId         Int // Used for hub.getResourceDetail
+  attachmentId       Int
+  discussionThreadId Int
+
+  imageUrl    String
+  iconUrl     String
+  downloadUrl String
+
+  title           String
+  tagLine         String
+  dependencyCount Int
+  fileSize        Int
+  tags            Tag[]
+  typeId          Int // HubPackageType
+  categoryId      Int // HubCategory
+
+}
+
+model Tag {
+  id           Int         @id @default(autoincrement())
+  name         String      @unique
+  hubPackage   HubPackage? @relation(fields: [hubPackageId], references: [id])
+  hubPackageId Int?
 }
 
 model Scene {

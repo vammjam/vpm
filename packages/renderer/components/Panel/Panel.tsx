@@ -1,23 +1,32 @@
-import { Fragment, ReactNode } from 'react'
+import { ReactNode } from 'react'
+import styled, { css } from 'styled-components'
 import { Direction } from './types'
 
 export type PanelProps = {
-  children: ReactNode
+  children?: ReactNode
   size: number
   direction: Direction
 }
 
-const styleSize = (direction: Direction, size: number) => {
-  return {
-    [direction === 'column' ? 'height' : 'width']: size,
-  }
-}
+const Container = styled.div<{ $size: number; $direction: Direction }>`
+  ${({ $direction, $size }) =>
+    $direction === 'column'
+      ? css`
+          height: ${$size}px;
+        `
+      : css`
+          width: ${$size}px;
+        `}
+`
 
 export default function Panel({
   children,
-  direction,
   size,
+  direction,
 }: PanelProps): JSX.Element {
-  return <Fragment>{children}</Fragment>
-  // return <div style={styleSize(direction, size)}>{children}</div>
+  return (
+    <Container $size={size} $direction={direction}>
+      {children}
+    </Container>
+  )
 }

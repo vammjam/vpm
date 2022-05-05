@@ -8,7 +8,7 @@ import ConfigService from '~/services/ConfigService'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
-const init = () => {
+const createWindow = () => {
   const mainWindow = new BrowserWindow({
     height: 800,
     width: 1200,
@@ -24,6 +24,7 @@ const init = () => {
       // turned on, ONLY in DEV, to allow loading of local
       // files (images) when using the dev server
       webSecurity: isDev ? false : true,
+      nodeIntegrationInWorker: true, // multi-threading!
       preload: path.join(__dirname, 'preload.cjs'),
     },
   })
@@ -99,9 +100,15 @@ const init = () => {
 
 app
   .whenReady()
-  .then(init)
+  .then(createWindow)
   .catch((err) => {
     console.error((err as Error)?.message)
 
     process.exit(0)
   })
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow()
+  }
+})

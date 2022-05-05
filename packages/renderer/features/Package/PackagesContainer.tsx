@@ -1,7 +1,7 @@
 import { HTMLAttributes, useContext, useEffect } from 'react'
 import styled from 'styled-components'
 import { AddonPackage } from '@shared/types'
-import { SelectedPackagesContext } from '~/app/Layout'
+import { SelectedPackagesContext } from '~/components/Layout/Layout'
 import useStore, { State } from '~/store/useStore'
 import autoHideScrollbar from '~/utils/autoHideScrollbar'
 import Package from './Package'

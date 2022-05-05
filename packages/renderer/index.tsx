@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { render } from 'react-dom'
-import App from '~/app/App'
+import App from '~/app'
 
 /**
  * React 18's render mode breaks x-term, so for now, we have
